@@ -2,12 +2,14 @@ mod handlers;
 mod repositories;
 
 use crate::handlers::{all_todo, create_todo, delete_todo, find_todo, update_todo};
-use crate::repositories::{TodoRepository, TodoRepositoryForMemory};
+use crate::repositories::{TodoRepository, TodoRepositoryForDb};
 use axum::{
     extract::Extension,
     routing::{get, post},
     Router,
 };
+use dotenv::dotenv;
+use sqlx::PgPool;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -17,8 +19,14 @@ async fn main() {
     let log_level = env::var("RUST_LOG").unwrap_or("info".to_string());
     env::set_var("RUST_LOG", log_level);
     tracing_subscriber::fmt::init();
+    dotenv().ok();
 
-    let repo = TodoRepositoryForMemory::new();
+    let database_url = &env::var("DATABASE_URL").expect("undefined DATABASE_URL");
+    tracing::info!("start connect database ...");
+    let pool = PgPool::connect(database_url)
+        .await
+        .expect(&format!("fail connect database, url is [{}]", database_url));
+    let repo = TodoRepositoryForDb::new(pool);
     let app = create_app(repo);
     let addr = SocketAddr::from(([127, 0, 0, 1], 5000));
     tracing::info!("listening on {}", addr);
@@ -49,7 +57,7 @@ async fn root() -> &'static str {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::repositories::{CreateTodo, Todo};
+    use crate::repositories::{test_utils::TodoRepositoryForMemory, CreateTodo, Todo};
     use axum::{
         body::Body,
         http::{header, Method, Request, StatusCode},
@@ -111,7 +119,9 @@ mod test {
     async fn should_find_todo() {
         let expected = Todo::new(1, "should_find_todo".to_string());
         let repo = TodoRepositoryForMemory::new();
-        repo.create(CreateTodo::new("should_find_todo".to_string()));
+        repo.create(CreateTodo::new("should_find_todo".to_string()))
+            .await
+            .expect("failed create todo");
         let req = build_todo_req_with_empty(Method::GET, "/todos/1");
         let res = create_app(repo).oneshot(req).await.unwrap();
 
@@ -123,7 +133,9 @@ mod test {
     async fn should_get_all_todos() {
         let expected = vec![Todo::new(1, "should_get_all_todo".to_string())];
         let repo = TodoRepositoryForMemory::new();
-        repo.create(CreateTodo::new("should_get_all_todo".to_string()));
+        repo.create(CreateTodo::new("should_get_all_todo".to_string()))
+            .await
+            .expect("failed create todo");
         let req = build_todo_req_with_empty(Method::GET, "/todos");
         let res = create_app(repo).oneshot(req).await.unwrap();
 
@@ -138,7 +150,9 @@ mod test {
     async fn should_update_todo() {
         let expected = Todo::new(1, "should_update_todo".to_string());
         let repo = TodoRepositoryForMemory::new();
-        repo.create(CreateTodo::new("before_update_todo".to_string()));
+        repo.create(CreateTodo::new("before_update_todo".to_string()))
+            .await
+            .expect("failed create todo");
         let req = build_todo_req_with_json(
             "/todos/1",
             Method::PATCH,
@@ -157,7 +171,9 @@ mod test {
     #[tokio::test]
     async fn should_delete_todo() {
         let repo = TodoRepositoryForMemory::new();
-        repo.create(CreateTodo::new("should_delete_todo".to_string()));
+        repo.create(CreateTodo::new("should_delete_todo".to_string()))
+            .await
+            .expect("failed create todo");
         let req = build_todo_req_with_empty(Method::DELETE, "/todos/1");
         let res = create_app(repo).oneshot(req).await.unwrap();
         assert_eq!(StatusCode::NO_CONTENT, res.status());

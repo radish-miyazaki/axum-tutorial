@@ -19,3 +19,9 @@ anyhow = "1.0.56"
 thiserror = "1.0.30"
 validator = { version = "0.16.0", features = ["derive"] }
 http-body = "0.4.5"
+sqlx = { version = "0.6", features = ["postgres", "runtime-tokio-rustls"] }
+dotenv = "0.15.0"
+
+[features]
+default = ["database-test"]
+database-test = []
