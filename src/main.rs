@@ -3,16 +3,19 @@ mod repositories;
 
 use crate::handlers::{all_todo, create_todo, delete_todo, find_todo, update_todo};
 use crate::repositories::{TodoRepository, TodoRepositoryForDb};
+use axum::http::HeaderValue;
 use axum::{
     extract::Extension,
     routing::{get, post},
     Router,
 };
 use dotenv::dotenv;
+use hyper::header::CONTENT_TYPE;
 use sqlx::PgPool;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 #[tokio::main]
 async fn main() {
@@ -48,6 +51,12 @@ fn create_app<T: TodoRepository>(repo: T) -> Router {
                 .patch(update_todo::<T>),
         )
         .layer(Extension(Arc::new(repo)))
+        .layer(
+            CorsLayer::new()
+                .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
+                .allow_methods(Any)
+                .allow_headers(vec![CONTENT_TYPE]),
+        )
 }
 
 async fn root() -> &'static str {
