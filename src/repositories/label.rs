@@ -1,7 +1,7 @@
 use crate::repositories::RepositoryError;
 use axum::async_trait;
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::{FromRow, PgPool};
 use validator::Validate;
 
 #[async_trait]
@@ -11,7 +11,7 @@ pub trait LabelRepository: Clone + Send + Sync + 'static {
     async fn delete(&self, id: i32) -> anyhow::Result<()>;
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, FromRow)]
 pub struct Label {
     pub id: i32,
     pub name: String,
